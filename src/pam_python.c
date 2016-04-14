@@ -29,7 +29,13 @@
 #define PAM_SM_PASSWORD
 
 #include <security/pam_modules.h>
+#ifndef __APPLE__
 #include <security/_pam_macros.h>
+#include <security/_pam_types.h>
+#else
+#include <security/pam_appl.h>
+#include <security/pam_constants.h>
+#endif
 
 #undef	_POSIX_C_SOURCE
 
@@ -44,7 +50,11 @@
 #endif
 
 #ifndef	DEFAULT_SECURITY_DIR
+#ifdef __APPLE__
+#define DEFAULT_SECURITY_DIR	"/usr/lib/pam/"
+#else
 #define	DEFAULT_SECURITY_DIR	"/lib/security/"
+#endif
 #endif
 
 #define	PAMHANDLE_NAME		"PamHandle"
@@ -305,7 +315,7 @@ static void SyslogFile_flush(PyObject* self)
 static PyMethodDef SyslogFile_Methods[] =
 {
   {
-    "write", 
+    "write",
     (PyCFunction)SyslogFile_write,
     METH_VARARGS|METH_KEYWORDS,
     0
@@ -776,7 +786,7 @@ static PyObject* PamHandle_get_item(PyObject* self, int item_type)
   const char*		value;
   PyObject*		result = 0;
   int			pam_result;
-  
+
   pam_result = pam_get_item(pamHandle->pamh, item_type, (const void**)&value);
   if (check_pam_result(pamHandle, pam_result) == -1)
     goto error_exit;
@@ -1107,7 +1117,7 @@ static int PamEnv_mp_assign(PyObject* self, PyObject* key, PyObject* value)
     strcat(strcat(strcpy(value_str, key_str), "="), PyString_AS_STRING(value));
   }
   pam_result = pam_putenv(pamEnv->pamHandle->pamh, value_str);
-  if (pam_result == PAM_BAD_ITEM)
+  if (pam_result != PAM_SUCCESS) // PAM_BAD_ITEM in Linux = PAM_BUF_ERR,PAM_SYSTEM_ERR
   {
     PyErr_SetString(PyExc_KeyError, key_str);
     goto error_exit;
@@ -1382,33 +1392,50 @@ DECLARE_CONSTANT_GET(PAM_AUTHTOK_DISABLE_AGING)
 DECLARE_CONSTANT_GET(PAM_AUTHTOK_ERR)
 DECLARE_CONSTANT_GET(PAM_AUTHTOK_EXPIRED)
 DECLARE_CONSTANT_GET(PAM_AUTHTOK_LOCK_BUSY)
-DECLARE_CONSTANT_GET(PAM_AUTHTOK_RECOVER_ERR)
 #ifdef	PAM_AUTHTOK_RECOVERY_ERR
 DECLARE_CONSTANT_GET(PAM_AUTHTOK_RECOVERY_ERR)
+#endif
+#ifdef	PAM_AUTHTOK_RECOVER_ERR
+DECLARE_CONSTANT_GET(PAM_AUTHTOK_RECOVER_ERR)
 #endif
 #ifdef	PAM_AUTHTOK_TYPE
 DECLARE_CONSTANT_GET(PAM_AUTHTOK_TYPE)
 #endif
+
+#ifdef PAM_BAD_ITEM
 DECLARE_CONSTANT_GET(PAM_BAD_ITEM)
+#endif
+#ifdef PAM_BINARY_PROMPT
 DECLARE_CONSTANT_GET(PAM_BINARY_PROMPT)
+#endif
 DECLARE_CONSTANT_GET(PAM_BUF_ERR)
 DECLARE_CONSTANT_GET(PAM_CHANGE_EXPIRED_AUTHTOK)
 DECLARE_CONSTANT_GET(PAM_CONV)
+#ifdef PAM_CONV_AGAIN
 DECLARE_CONSTANT_GET(PAM_CONV_AGAIN)
+#endif
 DECLARE_CONSTANT_GET(PAM_CONV_ERR)
 DECLARE_CONSTANT_GET(PAM_CRED_ERR)
 DECLARE_CONSTANT_GET(PAM_CRED_EXPIRED)
 DECLARE_CONSTANT_GET(PAM_CRED_INSUFFICIENT)
 DECLARE_CONSTANT_GET(PAM_CRED_UNAVAIL)
+#ifdef PAM_DATA_REPLACE
 DECLARE_CONSTANT_GET(PAM_DATA_REPLACE)
+#endif
+#ifdef PAM_DATA_SILENT
 DECLARE_CONSTANT_GET(PAM_DATA_SILENT)
+#endif
 DECLARE_CONSTANT_GET(PAM_DELETE_CRED)
 DECLARE_CONSTANT_GET(PAM_DISALLOW_NULL_AUTHTOK)
 DECLARE_CONSTANT_GET(PAM_ERROR_MSG)
 DECLARE_CONSTANT_GET(PAM_ESTABLISH_CRED)
+#ifdef PAM_FAIL_DELAY
 DECLARE_CONSTANT_GET(PAM_FAIL_DELAY)
+#endif
 DECLARE_CONSTANT_GET(PAM_IGNORE)
+#ifdef PAM_INCOMPLETE
 DECLARE_CONSTANT_GET(PAM_INCOMPLETE)
+#endif
 DECLARE_CONSTANT_GET(PAM_MAX_MSG_SIZE)
 DECLARE_CONSTANT_GET(PAM_MAX_NUM_MSG)
 DECLARE_CONSTANT_GET(PAM_MAX_RESP_SIZE)
@@ -1422,10 +1449,14 @@ DECLARE_CONSTANT_GET(PAM_PERM_DENIED)
 DECLARE_CONSTANT_GET(PAM_PRELIM_CHECK)
 DECLARE_CONSTANT_GET(PAM_PROMPT_ECHO_OFF)
 DECLARE_CONSTANT_GET(PAM_PROMPT_ECHO_ON)
+#ifdef PAM_RADIO_TYPE
 DECLARE_CONSTANT_GET(PAM_RADIO_TYPE)
+#endif
 DECLARE_CONSTANT_GET(PAM_REFRESH_CRED)
 DECLARE_CONSTANT_GET(PAM_REINITIALIZE_CRED)
+#ifdef _PAM_RETURN_VALUES
 DECLARE_CONSTANT_GET(_PAM_RETURN_VALUES)
+#endif
 DECLARE_CONSTANT_GET(PAM_RHOST)
 DECLARE_CONSTANT_GET(PAM_RUSER)
 DECLARE_CONSTANT_GET(PAM_SERVICE)
@@ -1442,6 +1473,7 @@ DECLARE_CONSTANT_GET(PAM_UPDATE_AUTHTOK)
 DECLARE_CONSTANT_GET(PAM_USER)
 DECLARE_CONSTANT_GET(PAM_USER_PROMPT)
 DECLARE_CONSTANT_GET(PAM_USER_UNKNOWN)
+
 #ifdef	PAM_XAUTHDATA
 DECLARE_CONSTANT_GET(PAM_XAUTHDATA)
 #endif
@@ -1490,7 +1522,7 @@ static PyObject* PamHandle_get_XAUTHDATA(PyObject* self, void* closure)
   PyObject*		result = 0;
   int			pam_result;
   struct pam_xauth_data* xauth_data = 0;
-  
+
   closure = closure;
   pam_result = pam_get_item(
       pamHandle->pamh, PAM_XAUTHDATA, (const void**)&xauth_data);
@@ -1633,33 +1665,50 @@ static PyGetSetDef PamHandle_Getset[] =
   CONSTANT_GETSET(PAM_AUTHTOK_ERR),
   CONSTANT_GETSET(PAM_AUTHTOK_EXPIRED),
   CONSTANT_GETSET(PAM_AUTHTOK_LOCK_BUSY),
-  CONSTANT_GETSET(PAM_AUTHTOK_RECOVER_ERR),
+
 #ifdef	PAM_AUTHTOK_RECOVERY_ERR
   CONSTANT_GETSET(PAM_AUTHTOK_RECOVERY_ERR),
+#endif
+#ifdef 	PAM_AUTHTOK_RECOVER_ERR
+  CONSTANT_GETSET(PAM_AUTHTOK_RECOVER_ERR),
 #endif
 #ifdef	PAM_AUTHTOK_TYPE
   CONSTANT_GETSET(PAM_AUTHTOK_TYPE),
 #endif
+#ifdef PAM_BAD_ITEM
   CONSTANT_GETSET(PAM_BAD_ITEM),
+#endif
+#ifdef PAM_BINARY_PROMPT
   CONSTANT_GETSET(PAM_BINARY_PROMPT),
+#endif
   CONSTANT_GETSET(PAM_BUF_ERR),
   CONSTANT_GETSET(PAM_CHANGE_EXPIRED_AUTHTOK),
   CONSTANT_GETSET(PAM_CONV),
+#ifdef PAM_CONV_AGAIN
   CONSTANT_GETSET(PAM_CONV_AGAIN),
+#endif
   CONSTANT_GETSET(PAM_CONV_ERR),
   CONSTANT_GETSET(PAM_CRED_ERR),
   CONSTANT_GETSET(PAM_CRED_EXPIRED),
   CONSTANT_GETSET(PAM_CRED_INSUFFICIENT),
   CONSTANT_GETSET(PAM_CRED_UNAVAIL),
+#ifdef PAM_DATA_REPLACE
   CONSTANT_GETSET(PAM_DATA_REPLACE),
+#endif
+#ifdef PAM_DATA_SILENT
   CONSTANT_GETSET(PAM_DATA_SILENT),
+#endif
   CONSTANT_GETSET(PAM_DELETE_CRED),
   CONSTANT_GETSET(PAM_DISALLOW_NULL_AUTHTOK),
   CONSTANT_GETSET(PAM_ERROR_MSG),
   CONSTANT_GETSET(PAM_ESTABLISH_CRED),
+#ifdef PAM_FAIL_DELAY
   CONSTANT_GETSET(PAM_FAIL_DELAY),
+#endif
   CONSTANT_GETSET(PAM_IGNORE),
+#ifdef PAM_INCOMPLETE
   CONSTANT_GETSET(PAM_INCOMPLETE),
+#endif
   CONSTANT_GETSET(PAM_MAX_MSG_SIZE),
   CONSTANT_GETSET(PAM_MAX_NUM_MSG),
   CONSTANT_GETSET(PAM_MAX_RESP_SIZE),
@@ -1673,10 +1722,14 @@ static PyGetSetDef PamHandle_Getset[] =
   CONSTANT_GETSET(PAM_PRELIM_CHECK),
   CONSTANT_GETSET(PAM_PROMPT_ECHO_OFF),
   CONSTANT_GETSET(PAM_PROMPT_ECHO_ON),
+#ifdef PAM_RADIO_TYPE
   CONSTANT_GETSET(PAM_RADIO_TYPE),
+#endif
   CONSTANT_GETSET(PAM_REFRESH_CRED),
   CONSTANT_GETSET(PAM_REINITIALIZE_CRED),
+#ifdef _PAM_RETURN_VALUES
   CONSTANT_GETSET(_PAM_RETURN_VALUES),
+#endif
   CONSTANT_GETSET(PAM_RHOST),
   CONSTANT_GETSET(PAM_RUSER),
   CONSTANT_GETSET(PAM_SERVICE),
@@ -1878,21 +1931,35 @@ error_exit:
 static PyObject* PamHandle_fail_delay(
     PyObject* self, PyObject* args, PyObject* kwds)
 {
-  int			err;
-  PamHandleObject*	pamHandle = (PamHandleObject*)self;
-  int			micro_sec = 0;
-  int			pam_result;
-  PyObject*		result = 0;
-  static char*		kwlist[] = {"micro_sec", NULL};
+  int                  err;
+  PamHandleObject*     pamHandle = (PamHandleObject*)self;
+  int                  micro_sec = 0;
+  int                  pam_result;
+  #ifdef __APPLE__
+  (void)(self);
+  (void)(args);
+  (void)(kwds);
+  #else
+	self = self; args = args; kwds = kwds;
+  #endif
+
+  PyObject*            result = 0;
+  static char*         kwlist[] = {"micro_sec", NULL};
 
   err = PyArg_ParseTupleAndKeywords(
       args, kwds, "i:fail_delay", kwlist,
       &micro_sec);
   if (!err)
     goto error_exit;
+#ifdef HAVE_PAM_FAIL_DELAY
   pam_result = pam_fail_delay(pamHandle->pamh, micro_sec);
   if (check_pam_result(pamHandle, pam_result) == -1)
     goto error_exit;
+#else
+  (void)(pam_result);
+  (void)(pamHandle);
+  result = Py_None;
+#endif
   result = Py_None;
   Py_INCREF(result);
 
@@ -1941,6 +2008,11 @@ static PyObject* PamHandle_strerror(
   PamHandleObject*	pamHandle = (PamHandleObject*)self;
   const char*		err;
   int			errnum;
+#ifdef __APPLE__
+  const int topErrNum = 30; // pam_constants.h
+#else
+  const int topErrNum = _PAM_RETURN_VALUES;
+#endif
   PyObject*		result = 0;
   const int		debug_magic = 0x4567abcd;
   static char*		kwlist[] = {"errnum", NULL};
@@ -1950,7 +2022,8 @@ static PyObject* PamHandle_strerror(
   /*
    * A kludge so we can test exceptions.
    */
-  if (errnum >= debug_magic && errnum < debug_magic + _PAM_RETURN_VALUES)
+
+  if (errnum >= debug_magic && errnum < debug_magic + topErrNum)
   {
     if (check_pam_result(pamHandle, errnum - debug_magic) == -1)
       goto error_exit;
@@ -1975,7 +2048,7 @@ error_exit:
 static PyMethodDef PamHandle_Methods[] =
 {
   {
-    "conversation", 
+    "conversation",
     (PyCFunction)PamHandle_conversation,
     METH_VARARGS|METH_KEYWORDS,
     MODULE_NAME "." PAMHANDLE_NAME "." "conversation(prompts)\n"
@@ -1985,7 +2058,7 @@ static PyMethodDef PamHandle_Methods[] =
     "  or an array of " MODULE_NAME "." PAMHANDLE_NAME "." PAMRESPONSE_NAME " objects."
   },
   {
-    "fail_delay", 
+    "fail_delay",
     (PyCFunction)PamHandle_fail_delay,
     METH_VARARGS|METH_KEYWORDS,
     MODULE_NAME "." PAMHANDLE_NAME "." "fail_delay(micro_sec)\n"
@@ -1994,7 +2067,7 @@ static PyMethodDef PamHandle_Methods[] =
     "  attempt."
   },
   {
-    "get_user", 
+    "get_user",
     (PyCFunction)PamHandle_get_user,
     METH_VARARGS|METH_KEYWORDS,
     MODULE_NAME "." PAMHANDLE_NAME "." "getuser([prompt])\n"
@@ -2003,7 +2076,7 @@ static PyMethodDef PamHandle_Methods[] =
     "  user name (a string) is returned.  It will be None if it isn't known."
   },
   {
-    "strerror", 
+    "strerror",
     (PyCFunction)PamHandle_strerror,
     METH_VARARGS|METH_KEYWORDS,
     MODULE_NAME "." PAMHANDLE_NAME "." "strerror(errnum)\n"
@@ -2094,7 +2167,7 @@ static char PamHandle_Doc[] =
   "  module.  It is the first argument to every method PAM calls in the module.";
 
 static int	pypam_initialize_count = 0;
-  
+
 static void cleanup_pamHandle(pam_handle_t* pamh, void* data, int error_status)
 {
   PamHandleObject*	pamHandle = (PamHandleObject*)data;
@@ -2104,8 +2177,14 @@ static void cleanup_pamHandle(pam_handle_t* pamh, void* data, int error_status)
   int			py_initialized;
   static const char*	handler_name = "pam_sm_end";
 
+#ifdef __APPLE__
+  (void)(pamh);
+  (void)(error_status);
+#else
   pamh = pamh;
   error_status = error_status;
+#endif
+
   handler_function =
       PyObject_GetAttrString(pamHandle->module, (char*)handler_name);
   if (handler_function == 0)

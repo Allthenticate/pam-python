@@ -4,9 +4,16 @@
  *   gcc -O0 -g -Wall -o test -lpam test.c
  *   sudo ln -s $PWD/test-pam_python.pam /etc/pam.d
  *   ./ctest
- *   sudo rm /etc/pam.d/test-pam_python.pam 
+ *   sudo rm /etc/pam.d/test-pam_python.pam
  */
 #define	_GNU_SOURCE
+#ifdef __APPLE__
+#pragma message "OSX has no dl_* functions, so this module is not supported"
+int main() {
+  return 0;
+}
+#else
+
 #include <link.h>
 #include <security/pam_appl.h>
 #include <stdio.h>
@@ -24,7 +31,11 @@ static int conv(
 {
   int		i;
 
+#ifdef __APPLE__
+  (void)(appdata_ptr);
+#else
   appdata_ptr = appdata_ptr;
+#endif
   *resp = malloc(num_msg * sizeof(**resp));
   for (i = 0; i < num_msg; i += 1)
   {
@@ -52,7 +63,11 @@ static int dl_walk(struct dl_phdr_info* info, size_t size, void* data)
 {
   struct walk_info*		walk_info = data;
 
+#ifdef __APPLE__
+  (void)(size);
+#else
   size = size;
+#endif
   if (strstr(info->dlpi_name, "/pam_python.so") != 0)
     walk_info->libpam_python_seen = 1;
   if (strstr(info->dlpi_name, "/libpython") != 0)
@@ -75,8 +90,13 @@ int main(int argc, char **argv)
   struct walk_info	walk_info_before;
   struct walk_info	walk_info_after;
 
+#ifdef __APPLE__
+  (void)(argc);
+  (void)(argv);
+#else
   argc = argc;
   argv = argv;
+#endif
   if (access("/etc/pam.d/test-pam_python.pam", 0) != 0)
   {
     fprintf(
@@ -131,3 +151,4 @@ int main(int argc, char **argv)
     printf("OK\n");
   return exit_status;
 }
+#endif /* __APPLE__ */
