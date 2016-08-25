@@ -30,7 +30,10 @@ if not os.environ.has_key("Py_DEBUG"):
 else:
   Py_DEBUG = [('Py_DEBUG',1)]
 
-libpython_so = distutils.sysconfig.get_config_var('INSTSONAME')
+libpython_so = os.path.join(
+  distutils.sysconfig.get_config_var('PYTHONFRAMEWORKPREFIX'),
+  distutils.sysconfig.get_config_var('INSTSONAME'))
+  
 ext_modules = [
     Extension(
       "pam_python",
